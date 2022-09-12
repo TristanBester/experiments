@@ -15,6 +15,29 @@ def euclidean_distance(x, y):
     return torch.sum((x - y) ** 2)
 
 
+def correlation_based_similarity(x, y):
+    t = torch.vstack((x.flatten(), y.flatten()),)
+    p = torch.corrcoef(t)[0][1]
+    return torch.sqrt(2 * (1 - p))
+
+
+def _complexity_estimate(x):
+    x_back_shift = x[:-1]
+    x_forward_shift = x[1:]
+    return torch.sqrt(torch.sum((x_forward_shift - x_back_shift) ** 2))
+
+
+def _complexitity_factor(x, y):
+    ce = torch.tensor([_complexity_estimate(x), _complexity_estimate(y)])
+    return torch.max(ce) / (torch.min(ce) + 1e-8)
+
+
+def complexity_invariant_similarity(x, y):
+    ed = euclidean_distance(x, y)
+    cf = _complexitity_factor(x, y)
+    return ed * cf
+
+
 def _calculate_similarity_matrix(X, metric):
     similarity_matrix = torch.zeros(size=(X.shape[0], X.shape[0]))
 
@@ -85,9 +108,9 @@ if __name__ == "__main__":
         latents.append(l.detach())
     latents = torch.cat(latents)
 
-    centroids = calculate_centroids(latents, euclidean_distance, k=2)
+    centroids = calculate_centroids(latents, complexity_invariant_similarity, k=2)
 
-    cl = DTC(ae.encoder, centroids=centroids, metric=euclidean_distance)
+    cl = DTC(ae.encoder, centroids=centroids, metric=complexity_invariant_similarity)
 
     optimizer = optim.SGD(cl.parameters(), lr=0.01)
     mse_loss_fn = nn.MSELoss()
@@ -130,6 +153,6 @@ if __name__ == "__main__":
 
         pbar.set_description(f"{max_auc}")
 
-    with open("results2.csv", "a") as f:
+    with open("results2_cid.csv", "a") as f:
         f.write(f"{max_auc},N/A\n")
 

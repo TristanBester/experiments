@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     pretrain_tae(tae, loader, n_epochs=10)
 
-    cl = ClusterNet(tae=tae, n_hidden=64, n_clusters=2, similarity="EUC")
+    cl = ClusterNet(tae=tae, n_hidden=64, n_clusters=2, similarity="CID")
 
     for x, y in loader:
         cl.init_centroids(x.permute(0, 2, 1))
@@ -105,6 +105,6 @@ if __name__ == "__main__":
 
         pbar.set_description(f"{round(max_auc, 6)}")
 
-    with open("results.csv", "a") as f:
+    with open("results_cid.csv", "a") as f:
         f.write(f"{max_auc},{max_method}\n")
 
