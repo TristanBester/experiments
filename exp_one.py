@@ -1,72 +1,110 @@
+import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from base.autoencoder import TAE
-from custom.autoencoder import Autoencoder
-from datasets import BeetleFlyDataset
+from base.autoencoder import TAE, ClusterNet
+from datasets.datasets import BeetleFlyDataset
+
+
+def pretrain_tae(model, loader, n_epochs):
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    loss_fn = nn.MSELoss()
+
+    pbar = tqdm(range(n_epochs))
+
+    for i in pbar:
+        for x, y in loader:
+            x = x.permute(0, 2, 1)
+            l, x_prime = tae(x)
+
+            x_prime = x_prime.unsqueeze(1)
+
+            loss = loss_fn(x_prime, x)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        pbar.set_description(f"{round(loss.item(), 6)}")
+
+
+def kl_loss_function(input, pred):
+    out = input * torch.log((input) / (pred))
+    return torch.mean(torch.sum(out, dim=1))
+
 
 if __name__ == "__main__":
-    base_model = TAE(seq_len=512, pooling=8, n_hidden=64)
-    custom_model = Autoencoder(
-        seq_len=512,
-        input_dim=1,
-        cnn_channels=50,
-        cnn_kernel=10,
-        cnn_stride=1,
-        mp_kernel=8,
-        mp_stride=8,
-        lstm_hidden_dim=50,
-        deconv_kernel=10,
-        deconv_stride=1,
-    )
-
     dataset = BeetleFlyDataset(
-        train_path="/Users/tristan/Documents/CS/Research/baselines/data/BeetleFly/BeetleFly_TRAIN",
-        test_path="/Users/tristan/Documents/CS/Research/baselines/data/BeetleFly/BeetleFly_TEST",
+        train_path="data/BeetleFly/BeetleFly_TRAIN",
+        test_path="data/BeetleFly/BeetleFly_TEST",
     )
-    loader = DataLoader(dataset, batch_size=40)
+    loader = DataLoader(dataset=dataset, batch_size=40)
 
-    base_opt = optim.SGD(base_model.parameters(), lr=0.01)
-    cust_opt = optim.SGD(custom_model.parameters(), lr=0.01)
+    tae = TAE(pooling=8, filter_1=50, filter_lstm=[50, 1], seq_len=512, n_hidden=64)
 
-    base_loss = nn.MSELoss()
-    cust_loss = nn.MSELoss()
+    pretrain_tae(tae, loader, n_epochs=10)
 
-    min_loss_base = float("inf")
-    min_loss_cust = float("inf")
+    cl = ClusterNet(tae=tae, n_hidden=64, n_clusters=2, similarity="EUC")
 
-    for i in range(100):
-        base_loss_ave = 0
-        cust_loss_ave = 0
+    for x, y in loader:
+        cl.init_centroids(x.permute(0, 2, 1))
+
+    optimizer = optim.SGD(cl.parameters(), lr=0.01)
+    mse_loss_fn = nn.MSELoss()
+
+    max_method = None
+    max_auc = -1
+
+    pbar = tqdm(range(10))
+
+    for i in pbar:
+        all_probas = []
+        all_preds = []
+        all_labels = []
 
         for x, y in loader:
-            l_base, x_prime_base = base_model(x.permute(0, 2, 1))
-            l_cust, x_prime_cust = custom_model(x)
+            x = x.permute(0, 2, 1)
+            l, x_prime, Q, P = cl(x)
+            x_prime = x_prime.unsqueeze(1)
 
-            loss_base = base_loss(x_prime_base.unsqueeze(-1), x)
-            loss_cust = cust_loss(x_prime_cust, x)
+            loss_mse = mse_loss_fn(x_prime, x)
+            loss_kl = kl_loss_function(P, Q)
 
-            base_opt.zero_grad()
-            loss_base.backward()
-            base_opt.step()
+            total_loss = loss_mse + loss_kl
 
-            cust_opt.zero_grad()
-            loss_cust.backward()
-            cust_opt.step()
+            optimizer.zero_grad()
+            total_loss.backward()
+            optimizer.step()
 
-            base_loss_ave += loss_base.item()
-            cust_loss_ave += loss_cust.item()
+            all_preds.append(torch.max(Q, dim=1)[1])
+            all_probas.append(Q[:, 1].detach())
+            all_labels.append(y - 1)
 
-        if base_loss_ave < min_loss_base:
-            min_loss_base = base_loss_ave
-        if cust_loss_ave < min_loss_cust:
-            min_loss_cust = cust_loss_ave
+        all_preds = torch.cat(all_preds).numpy()
+        all_probas = torch.cat(all_probas).numpy()
+        all_labels = torch.cat(all_labels).numpy()
 
-        # print(base_loss_ave, cust_loss_ave)
+        roc_probas = max(
+            roc_auc_score(all_labels, all_probas),
+            roc_auc_score(all_labels, 1 - all_probas),
+        )
+        # roc_preds = max(
+        #     roc_auc_score(all_labels, all_preds),
+        #     roc_auc_score(all_labels, 1 - all_preds),
+        # )
 
-    with open("results.txt", "a") as f:
-        f.write(f"b: {min_loss_base}\tc: {min_loss_cust}\n")
+        if roc_probas > max_auc:
+            max_auc = roc_probas
+            max_method = "Probability"
 
-    print("Complete.")
+        # if roc_preds > max_auc:
+        #     max_auc = roc_preds
+        #     max_method = "Thresholded"
+
+        pbar.set_description(f"{round(max_auc, 6)}")
+
+    with open("results.csv", "a") as f:
+        f.write(f"{max_auc},{max_method}\n")
+

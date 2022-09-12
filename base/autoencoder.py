@@ -2,6 +2,7 @@ import gc
 
 import torch
 import torch.nn as nn
+from sklearn.cluster import AgglomerativeClustering
 
 
 class TAE_encoder(nn.Module):
@@ -142,3 +143,121 @@ class TAE(nn.Module):
         features = self.tae_encoder(x)
         out_deconv = self.tae_decoder(features)
         return features.squeeze(2), out_deconv
+
+
+class ClusterNet(nn.Module):
+    """
+    class for the defintion of the DTC model
+    path_ae : path to load autoencoder
+    centr_size : size of the centroids = size of the hidden features
+    alpha : parameter alpha for the t-student distribution.
+    """
+
+    def __init__(self, tae, n_hidden, n_clusters, similarity):
+        super().__init__()
+
+        ## init with the pretrained autoencoder model
+        self.tae = tae
+
+        ## clustering model
+        self.alpha_ = 1
+        self.centr_size = n_hidden
+        self.n_clusters = n_clusters
+        self.device = "cpu"
+        self.similarity = similarity
+
+    def init_centroids(self, x):
+        """
+        This function initializes centroids with agglomerative clustering
+        + complete linkage.
+        """
+        z, _ = self.tae(x)
+        z_np = z.detach().cpu()
+        assignements = AgglomerativeClustering(
+            n_clusters=2, linkage="complete", affinity="precomputed"
+        ).fit_predict(compute_similarity(z_np, z_np, similarity=self.similarity))
+
+        centroids_ = torch.zeros((self.n_clusters, self.centr_size), device=self.device)
+
+        for cluster_ in range(self.n_clusters):
+            index_cluster = [
+                k for k, index in enumerate(assignements) if index == cluster_
+            ]
+            centroids_[cluster_] = torch.mean(z.detach()[index_cluster], dim=0)
+
+        self.centroids = nn.Parameter(centroids_)
+
+    def forward(self, x):
+
+        z, x_reconstr = self.tae(x)
+        z_np = z.detach().cpu()
+
+        similarity = compute_similarity(z, self.centroids, similarity=self.similarity)
+
+        ## Q (batch_size , n_clusters)
+        Q = torch.pow((1 + (similarity / self.alpha_)), -(self.alpha_ + 1) / 2)
+        sum_columns_Q = torch.sum(Q, dim=1).view(-1, 1)
+        Q = Q / sum_columns_Q
+
+        ## P : ground truth distribution
+        P = torch.pow(Q, 2) / torch.sum(Q, dim=0).view(1, -1)
+        sum_columns_P = torch.sum(P, dim=1).view(-1, 1)
+        P = P / sum_columns_P
+        return z, x_reconstr, Q, P
+
+
+def compute_CE(x):
+    """
+    x shape : (n , n_hidden)
+    return : output : (n , 1)
+    """
+    return torch.sqrt(torch.sum(torch.square(x[:, 1:] - x[:, :-1]), dim=1))
+
+
+def compute_similarity(z, centroids, similarity="EUC"):
+    """
+    Function that compute distance between a latent vector z and the clusters centroids.
+
+    similarity : can be in [CID,EUC,COR] :  euc for euclidean,  cor for correlation and CID
+                 for Complexity Invariant Similarity.
+    z shape : (batch_size, n_hidden)
+    centroids shape : (n_clusters, n_hidden)
+    output : (batch_size , n_clusters)
+    """
+    n_clusters, n_hidden = centroids.shape[0], centroids.shape[1]
+    bs = z.shape[0]
+
+    if similarity == "CID":
+        CE_z = compute_CE(z).unsqueeze(1)  # shape (batch_size , 1)
+        CE_cen = compute_CE(centroids).unsqueeze(0)  ## shape (1 , n_clusters )
+        z = z.unsqueeze(0).expand((n_clusters, bs, n_hidden))
+        mse = torch.sqrt(torch.sum((z - centroids.unsqueeze(1)) ** 2, dim=2))
+        CE_z = CE_z.expand((bs, n_clusters))  # (bs , n_clusters)
+        CE_cen = CE_cen.expand((bs, n_clusters))  # (bs , n_clusters)
+        CF = torch.max(CE_z, CE_cen) / torch.min(CE_z, CE_cen)
+        return torch.transpose(mse, 0, 1) * CF
+
+    elif similarity == "EUC":
+        z = z.expand((n_clusters, bs, n_hidden))
+        mse = torch.sqrt(torch.sum((z - centroids.unsqueeze(1)) ** 2, dim=2))
+        return torch.transpose(mse, 0, 1)
+
+    elif similarity == "COR":
+        std_z = (
+            torch.std(z, dim=1).unsqueeze(1).expand((bs, n_clusters))
+        )  ## (bs,n_clusters)
+        mean_z = (
+            torch.mean(z, dim=1).unsqueeze(1).expand((bs, n_clusters))
+        )  ## (bs,n_clusters)
+        std_cen = (
+            torch.std(centroids, dim=1).unsqueeze(0).expand((bs, n_clusters))
+        )  ## (bs,n_clusters)
+        mean_cen = (
+            torch.mean(centroids, dim=1).unsqueeze(0).expand((bs, n_clusters))
+        )  ## (bs,n_clusters)
+        ## covariance
+        z_expand = z.unsqueeze(1).expand((bs, n_clusters, n_hidden))
+        cen_expand = centroids.unsqueeze(0).expand((bs, n_clusters, n_hidden))
+        prod_expec = torch.mean(z_expand * cen_expand, dim=2)  ## (bs , n_clusters)
+        pearson_corr = (prod_expec - mean_z * mean_cen) / (std_z * std_cen)
+        return torch.sqrt(2 * (1 - pearson_corr))
