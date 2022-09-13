@@ -8,3 +8,13 @@ def calculate_similarity_matrix(X, metric):
         for j in range(X.shape[0]):
             similarity_matrix[i][j] = metric(X[i], X[j])
     return similarity_matrix
+
+
+def get_latents(model, loader, device):
+    latents = []
+
+    for x, _ in loader:
+        x = x.to(device)
+        l, _ = model(x)
+        latents.append(l)
+    return torch.cat(latents).detach().cpu()

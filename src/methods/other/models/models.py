@@ -112,18 +112,30 @@ class TAE(nn.Module):
     filter_lstm : hidden size of the lstm.
     """
 
-    def __init__(self, seq_len, pooling, n_hidden, cnn_channels=50, lstm_hidden=50):
+    def __init__(
+        self,
+        seq_len,
+        input_dim,
+        cnn_channels,
+        cnn_kernel,
+        cnn_stride,
+        mp_kernel,
+        mp_stride,
+        lstm_hidden_dim,
+        deconv_kernel,
+        deconv_stride,
+    ) -> None:
         super().__init__()
 
-        self.pooling = pooling
+        self.pooling = mp_kernel
         self.filter_1 = cnn_channels
-        self.filter_lstm = [lstm_hidden, 1]
+        self.filter_lstm = [lstm_hidden_dim, 1]
 
         self.tae_encoder = TAE_encoder(
             filter_1=self.filter_1, filter_lstm=self.filter_lstm, pooling=self.pooling,
         )
         n_hidden = self.get_hidden(seq_len, "cpu")
-
+        self.n_hidden = n_hidden
         self.tae_decoder = TAE_decoder(n_hidden=n_hidden, pooling=self.pooling)
 
     def get_hidden(self, serie_size, device):
@@ -154,24 +166,28 @@ class ClusterNet(nn.Module):
     alpha : parameter alpha for the t-student distribution.
     """
 
-    def __init__(self, tae, centroids, n_hidden, n_clusters, similarity):
+    # def __init__(self, tae, centroids, n_hidden, n_clusters, similarity):
+    def __init__(self, encoder, centroids, metric):
         super().__init__()
 
         ## init with the pretrained autoencoder model
-        self.tae = tae
+        # self.tae = tae
+        self.encoder = encoder
         self.centroids = nn.Parameter(centroids)
 
         ## clustering model
         self.alpha_ = 1
-        self.centr_size = n_hidden
-        self.n_clusters = n_clusters
+        # self.centr_size = n_hidden
+        # self.n_clusters = n_clusters
         self.device = "cpu"
-        self.similarity = similarity
+        self.similarity = metric
 
     def forward(self, x):
 
-        z, x_reconstr = self.tae(x)
-        z_np = z.detach().cpu()
+        z = self.encoder(x).squeeze(2)
+
+        # z, x_reconstr = self.tae(x)
+        # z_np = z.detach().cpu()
 
         similarity = compute_similarity(z, self.centroids, similarity=self.similarity)
 
@@ -184,5 +200,5 @@ class ClusterNet(nn.Module):
         P = torch.pow(Q, 2) / torch.sum(Q, dim=0).view(1, -1)
         sum_columns_P = torch.sum(P, dim=1).view(-1, 1)
         P = P / sum_columns_P
-        return z, x_reconstr, Q, P
+        return z, Q, P
 

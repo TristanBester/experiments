@@ -1,10 +1,26 @@
 import torch
 import torch.nn as nn
 
+from ..metrics import (
+    complexity_invariant_similarity,
+    correlation_based_similarity,
+    euclidean_distance,
+)
+
 
 class DTC(nn.Module):
     def __init__(self, encoder, centroids, metric) -> None:
         super().__init__()
+
+        if metric == "EUC":
+            metric = euclidean_distance
+        elif metric == "CID":
+            metric = complexity_invariant_similarity
+        elif metric == "COR":
+            metric = correlation_based_similarity
+        else:
+            raise ValueError("Invalid metric")
+
         self.encoder = encoder
         self.centroids = nn.Parameter(centroids)
         self.metric = metric
