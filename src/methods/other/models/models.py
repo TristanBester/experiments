@@ -200,5 +200,5 @@ class ClusterNet(nn.Module):
         P = torch.pow(Q, 2) / torch.sum(Q, dim=0).view(1, -1)
         sum_columns_P = torch.sum(P, dim=1).view(-1, 1)
         P = P / sum_columns_P
-        return z, Q, P
+        return z.unsqueeze(-1), Q, P
 
