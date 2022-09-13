@@ -10,8 +10,9 @@ def train_dtc(model, decoder, lr, n_epochs, loader, device):
     kl_loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     max_auc = -1
+    aucs = []
 
-    for i in range(n_epochs):
+    for _ in range(n_epochs):
         all_preds = []
         all_labels = []
 
@@ -40,9 +41,14 @@ def train_dtc(model, decoder, lr, n_epochs, loader, device):
 
         y_hat = y_hat[:, 1]
 
-        auc = max(roc_auc_score(y, y_hat), roc_auc_score(1 - y, y_hat))
+        try:
+            auc = max(roc_auc_score(y, y_hat), roc_auc_score(1 - y, y_hat))
+        except:
+            auc = 0
 
         if auc > max_auc:
             max_auc = auc
 
-    return max_auc
+        aucs.append(auc)
+
+    return max_auc, aucs

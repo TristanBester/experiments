@@ -1,1 +1,1 @@
-from .log_result import log_result
+from .log_result import create_experiment, log_result

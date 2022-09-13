@@ -6,11 +6,20 @@ def create_client():
     return client
 
 
-def log_result(db_name, dataset_name, info):
+def create_experiment(dataset_name, hparams):
     client = create_client()
 
-    db = client[db_name]
+    db = client["experiments"]
     col = db[dataset_name]
 
-    col.insert_one(info)
+    res = col.insert_one(hparams)
+    return res.inserted_id
+
+
+def log_result(model_name, result):
+    client = create_client()
+
+    db = client["results"]
+    col = db[model_name]
+    col.insert_one(result)
 
