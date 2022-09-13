@@ -154,11 +154,12 @@ class ClusterNet(nn.Module):
     alpha : parameter alpha for the t-student distribution.
     """
 
-    def __init__(self, tae, n_hidden, n_clusters, similarity):
+    def __init__(self, tae, centroids, n_hidden, n_clusters, similarity):
         super().__init__()
 
         ## init with the pretrained autoencoder model
         self.tae = tae
+        self.centroids = nn.Parameter(centroids)
 
         ## clustering model
         self.alpha_ = 1
@@ -166,27 +167,6 @@ class ClusterNet(nn.Module):
         self.n_clusters = n_clusters
         self.device = "cpu"
         self.similarity = similarity
-
-    def init_centroids(self, x):
-        """
-        This function initializes centroids with agglomerative clustering
-        + complete linkage.
-        """
-        z, _ = self.tae(x)
-        z_np = z.detach().cpu()
-        assignements = AgglomerativeClustering(
-            n_clusters=2, linkage="complete", affinity="precomputed"
-        ).fit_predict(compute_similarity(z_np, z_np, similarity=self.similarity))
-
-        centroids_ = torch.zeros((self.n_clusters, self.centr_size), device=self.device)
-
-        for cluster_ in range(self.n_clusters):
-            index_cluster = [
-                k for k, index in enumerate(assignements) if index == cluster_
-            ]
-            centroids_[cluster_] = torch.mean(z.detach()[index_cluster], dim=0)
-
-        self.centroids = nn.Parameter(centroids_)
 
     def forward(self, x):
 
