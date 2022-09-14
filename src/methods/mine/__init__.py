@@ -8,6 +8,7 @@ from .models import DTC, Autoencoder
 
 def init_DTC(ae_pretrain_lr, ae_pretrain_epochs, loader, device, hparams):
     model = Autoencoder(**hparams["AE"])
+    model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=ae_pretrain_lr)
     loss_fn = nn.MSELoss()
@@ -24,4 +25,5 @@ def init_DTC(ae_pretrain_lr, ae_pretrain_epochs, loader, device, hparams):
     dtc = DTC(
         encoder=model.encoder, centroids=centroids, metric=hparams["CL"]["metric"],
     )
+    dtc = dtc.to(device)
     return ae_loss, model.decoder, dtc

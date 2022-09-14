@@ -8,6 +8,7 @@ from .models import TAE, ClusterNet
 
 def init_DTC(ae_pretrain_lr, ae_pretrain_epochs, loader, device, hparams):
     model = TAE(**hparams["AE"])
+    model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=ae_pretrain_lr)
     loss_fn = nn.MSELoss()
@@ -24,4 +25,5 @@ def init_DTC(ae_pretrain_lr, ae_pretrain_epochs, loader, device, hparams):
     dtc = ClusterNet(
         encoder=model.tae_encoder, centroids=centroids, metric=hparams["CL"]["metric"],
     )
+    dtc = dtc.to(device)
     return ae_loss, model.tae_decoder, dtc

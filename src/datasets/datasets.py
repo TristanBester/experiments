@@ -39,7 +39,7 @@ class UCRDataset(Dataset):
 
         if self.device:
             self.X = self.X.to(self.device)
-            self.Y = self.y.to(self.device)
+            self.Y = self.Y.to(self.device)
 
     def __len__(self):
         return self.X.shape[0]

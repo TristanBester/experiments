@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 from bson.objectid import ObjectId
 from torch.utils.data import DataLoader
@@ -67,8 +69,14 @@ def create_model_baseline(
 
 
 if __name__ == "__main__":
-    device = torch.device("cpu")
-    data = init_data(base_path="./data", batch_size=HPARAMS["loader"]["batch_size"])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("device", default="cpu")
+    args = parser.parse_args()
+
+    device = torch.device(args.device)
+    data = init_data(
+        base_path="./data", batch_size=HPARAMS["loader"]["batch_size"], device=device
+    )
 
     exp_id = create_experiment(exp_name="Baseline", hparams=HPARAMS)
 
