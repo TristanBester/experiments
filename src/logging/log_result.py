@@ -2,15 +2,17 @@ from pymongo import MongoClient
 
 
 def create_client():
-    client = MongoClient("mongodb://root:example@localhost:27017/")
+    client = MongoClient(
+        "mongodb+srv://trist:nicepassword@dtc-cluster.kff2aq7.mongodb.net/test"
+    )
     return client
 
 
-def create_experiment(dataset_name, hparams):
+def create_experiment(exp_name, hparams):
     client = create_client()
 
     db = client["experiments"]
-    col = db[dataset_name]
+    col = db[exp_name]
 
     res = col.insert_one(hparams)
     return res.inserted_id

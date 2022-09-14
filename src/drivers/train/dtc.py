@@ -4,15 +4,16 @@ import torch.optim as optim
 from sklearn.metrics import roc_auc_score
 
 
-def train_dtc(model, decoder, lr, n_epochs, loader, device):
+def train_dtc(model, decoder, lr, loader, device, max_epochs=100):
     optimizer = optim.SGD(model.parameters(), lr=lr)
     mse_loss_fn = nn.MSELoss()
     kl_loss_fn = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     max_auc = -1
     aucs = []
+    last_assignments = None
 
-    for _ in range(n_epochs):
+    for _ in range(max_epochs):
         all_preds = []
         all_labels = []
 
@@ -38,6 +39,17 @@ def train_dtc(model, decoder, lr, n_epochs, loader, device):
 
         y_hat = torch.cat(all_preds).detach().cpu().numpy()
         y = torch.cat(all_labels).detach().cpu().numpy()
+
+        # Test for convergence
+        assignments = torch.argmax(Q, dim=1)
+
+        if last_assignments is not None:
+            delta = torch.abs(assignments - last_assignments)
+
+            if torch.sum(delta) < 0.001 * len(delta.flatten()):
+                break
+
+        last_assignments = assignments
 
         y_hat = y_hat[:, 1]
 

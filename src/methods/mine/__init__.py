@@ -9,7 +9,7 @@ from .models import DTC, Autoencoder
 def init_DTC(ae_pretrain_lr, ae_pretrain_epochs, loader, device, hparams):
     model = Autoencoder(**hparams["AE"])
 
-    optimizer = optim.SGD(model.parameters(), lr=ae_pretrain_lr)
+    optimizer = optim.Adam(model.parameters(), lr=ae_pretrain_lr)
     loss_fn = nn.MSELoss()
 
     ae_loss = pretrain_autoencoder(

@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.datasets import BeetleFlyDataset, BirdChickenDataset, ComputersDataset
+from src.drivers.data import init_data
 from src.drivers.train import train_dtc
 from src.logging import create_experiment, log_result
 from src.methods.mine import init_DTC as init_my_dtc
@@ -11,13 +12,10 @@ from src.methods.other import init_DTC as init_other_dtc
 
 HPARAMS = {
     "AE": {
-        "seq_len": 512,
         "input_dim": 1,
         "cnn_channels": 50,
         "cnn_kernel": 10,
         "cnn_stride": 1,
-        "mp_kernel": 8,
-        "mp_stride": 8,
         "lstm_hidden_dim": 50,
         "deconv_kernel": 10,
         "deconv_stride": 1,
@@ -29,8 +27,16 @@ HPARAMS = {
 }
 
 
-def create_model_baselines(model_name, model_factory, loader, device, exp_id):
-    for _ in tqdm(range(500)):
+def create_model_baseline(
+    model_name, model_factory, dataset, loader, device, exp_id=None, n_repeats=1
+):
+    HPARAMS["AE"]["seq_len"] = dataset.seq_len
+    HPARAMS["AE"]["mp_kernel"] = dataset.pooling
+    HPARAMS["AE"]["mp_stride"] = dataset.pooling
+
+    print(dataset.name)
+
+    for _ in tqdm(range(n_repeats)):
         ae_loss, decoder, dtc = model_factory(
             ae_pretrain_lr=HPARAMS["pretrain"]["lr"],
             ae_pretrain_epochs=HPARAMS["pretrain"]["n_epochs"],
@@ -43,35 +49,36 @@ def create_model_baselines(model_name, model_factory, loader, device, exp_id):
             model=dtc,
             decoder=decoder,
             lr=HPARAMS["train"]["lr"],
-            n_epochs=HPARAMS["train"]["n_epochs"],
             loader=loader,
             device=device,
         )
 
-        log_result(
-            model_name=model_name,
-            result={
-                "exp_id": ObjectId(exp_id),
-                "dataset": "beetle_fly",
-                "max_auc": max_auc,
-                "aucs": aucs,
-                "ae_loss": ae_loss,
-            },
-        )
+        if exp_id is not None:
+            log_result(
+                model_name=model_name,
+                result={
+                    "exp_id": ObjectId(exp_id),
+                    "dataset": dataset.name,
+                    "max_auc": max_auc,
+                    "aucs": aucs,
+                    "ae_loss": ae_loss,
+                },
+            )
 
 
 if __name__ == "__main__":
-    dataset = BeetleFlyDataset(
-        train_path="data/BeetleFly/BeetleFly_TRAIN",
-        test_path="data/BeetleFly/BeetleFly_TEST",
-    )
-    loader = DataLoader(dataset, batch_size=HPARAMS["loader"]["batch_size"])
     device = torch.device("cpu")
+    data = init_data(base_path="./data", batch_size=HPARAMS["loader"]["batch_size"])
 
-    exp_id = create_experiment("beetle_fly", HPARAMS)
+    exp_id = create_experiment(exp_name="Baseline", hparams=HPARAMS)
 
-    print("Creating baselines for DTC implementation...")
-    create_model_baselines("my_dtc", init_my_dtc, loader, device, exp_id)
+    for dataset, loader in data:
+        create_model_baseline(
+            model_name="MyDTC",
+            model_factory=init_my_dtc,
+            dataset=dataset,
+            loader=loader,
+            device=device,
+            exp_id=exp_id,
+        )
 
-    print("Creating baselines for Other implementation...")
-    create_model_baselines("other_dtc", init_other_dtc, loader, device, exp_id)

@@ -54,12 +54,106 @@ class BeetleFlyDataset(UCRDataset):
     def __init__(self, train_path, test_path, device=None):
         super().__init__(train_path, test_path, device)
 
+        self.name = "BeetleFly"
+        self.seq_len = 512
+        self.pooling = 8
+
 
 class BirdChickenDataset(UCRDataset):
     def __init__(self, train_path, test_path, device=None):
         super().__init__(train_path, test_path, device)
 
+        self.name = "BirdChicken"
+        self.seq_len = 512
+        self.pooling = 8
+
 
 class ComputersDataset(UCRDataset):
     def __init__(self, train_path, test_path, device=None):
         super().__init__(train_path, test_path, device)
+
+        self.name = "Computers"
+        self.seq_len = 720
+        self.pooling = 10
+
+
+class EarthquakesDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "Earthquakes"
+        self.seq_len = 512
+        self.pooling = 8
+
+
+class MoteStrainDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "MoteStrain"
+        self.seq_len = 84
+        self.pooling = 4
+
+
+class PhalangesOutlinesCorrectDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "PhalangesOutlinesCorrect"
+        self.seq_len = 80
+        self.pooling = 4
+
+
+class ProximalPhalanxOutlineCorrectDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "ProximalPhalanxOutlineCorrect"
+        self.seq_len = 80
+        self.pooling = 4
+
+
+class ShapeletSimDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "ShapeletSim"
+        self.seq_len = 500
+        self.pooling = 10
+
+
+class SonyAIBORobotSurfaceDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "SonyAIBORobotSurface"
+        self.seq_len = 70
+        self.pooling = 5
+
+
+class SonyAIBORobotSurfaceIIDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "SonyAIBORobotSurfaceII"
+        self.seq_len = 65
+        self.pooling = 5
+
+
+class ItalyPowerDemandDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "ItalyPowerDemand"
+        self.seq_len = 24
+        self.pooling = 4
+
+
+class WormsTwoClassDataset(UCRDataset):
+    def __init__(self, train_path, test_path, device=None):
+        super().__init__(train_path, test_path, device)
+
+        self.name = "WormsTwoClass"
+        self.seq_len = 900
+        self.pooling = 10
+
