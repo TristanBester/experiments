@@ -70,7 +70,8 @@ def create_model_baseline(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("device", default="cpu")
+    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--n_repeats", default=1)
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -88,5 +89,6 @@ if __name__ == "__main__":
             loader=loader,
             device=device,
             exp_id=exp_id,
+            n_repeats=args.n_repeats,
         )
 

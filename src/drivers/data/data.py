@@ -107,9 +107,7 @@ def init_datasets(base_path, device):
 
 
 def init_data(base_path, batch_size, device):
-    datasets = init_datasets(base_path)
-    loaders = [
-        DataLoader(dataset=d, batch_size=batch_size, device=device) for d in datasets
-    ]
+    datasets = init_datasets(base_path, device=device)
+    loaders = [DataLoader(dataset=d, batch_size=batch_size) for d in datasets]
     return list(zip(datasets, loaders))
 
